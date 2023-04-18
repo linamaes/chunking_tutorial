@@ -1,0 +1,405 @@
+---
+title: "Understanding Chunking and Rechunking"
+subtitle: "Chunking demo for Edu Pilot"
+author: "MPI-BGC (Integration department)"
+date: 'April, 2023'
+format: html
+jupyter: julia_test-1.8
+toc: true
+toc-expand: 1
+reference-location: margin
+citation-location: margin
+---
+
+# Introduction
+
+In this notebook you will learn how the chunking of the data set affects the reading and processing speed depending on data chunking and on the access patterns you need for your analysis.
+
+To start, chunking is important when working with datasets that do not fit into the memory which is often the case for climate and remote sensing data. This can severely limit the computation performance of data analysis due to the time to access, load and process the data. More information can be found at: <https://biojulia.github.io/post/hardware/>
+
+**Task**: Use your favorite NetCDF package and method to compute the a) mean and b) median per spatial pixel for the *air_temperature_2m* variable without loading the whole data set into memory (7 GB uncompressed file).
+
+For this tutorial, we will use two different chunk sizes of the same *air_temperature_2m* data set which has three dimensions (i.e., longitude, latitude, time). The files and chunks are: 
+
+* `t2_map.nc`: This chunked file setting aims fast access to spatial layers i.e., grids in latitude and longitude 
+
+* `t2_blocks.nc`: This chuncked file aims an intermediate access to both the spatial and temporal dimensions (box chunking)
+
+
+# Data exploration
+Let's launch Julia and explore the data
+
+```{julia}
+    # load environment
+    using Pkg
+    Pkg.activate(".")
+    Pkg.instantiate()
+    
+    # load libraries
+   using NetCDF
+   using DiskArrays: eachchunk
+   using DelimitedFiles
+
+    # set files location
+    pathin = readdlm("mypahtfolder.txt")
+
+    # load files metadata
+    xmap0 = NetCDF.open(string(pathin[1],"t2m_map.nc"))
+
+    # load files metadata
+    xbox0 = NetCDF.open(string(pathin[1],"t2m_blocks.nc"));
+
+    # use the 'view' command to read the data indices
+    # instead of loading the data
+    xmap = view(xmap0["air_temperature_2m"],:,:,:)
+    xbox = view(xbox0["air_temperature_2m"],:,:,:);
+```
+
+
+## Plots
+To get more familiar with the data let's do a few plots.
+
+```{julia}
+# libraries for plotting
+using Plots
+using CFTime
+using Dates
+
+# load time axis
+xmap0["time"].atts
+timevalues = timedecode(xmap0["time"][:],xmap0["time"].atts["units"]);
+
+# load latitude and longitude values
+yaxisvalues=xmap0["lat"][:]
+size(yaxisvalues)
+xaxisvalues=xmap0["lon"][:]
+size(xaxisvalues)
+
+varname = "Air temperature at 2 m";
+```
+
+```{julia}
+# |label: fig-t2m_map_day1
+# |fig-cap: "Global map of air temperature at 2 m on 05-Apr-1979. The color map shows the temperature in degrees Celsius."
+
+## map of air temperature at 2 m for the first time step
+heatmap(xaxisvalues, yaxisvalues, xmap[:,:,1]',
+color=cgrad((:roma), rev=true), xlabel="Longitude", 
+ylabel="Latitude", zlabel="Celsius degrees",
+xtickfont=font(12), ytickfont=font(12), 
+guidefont=font(16))
+```
+
+```{julia}
+# subset dates for plotting
+dict1 = Dict(Dates.value(x) => Dates.format(x, "u-yy") for x in timevalues)
+timesub = timevalues[1519:end] #subset for plotting
+t = Dates.value.(timesub)
+dict2 = map(x->dict1[x],t);
+```
+
+```{julia}
+# |label: fig-ts_plot1
+# |fig-cap: "Time series of air temperature at 2 m at at 0° N 0° E from the Jan-2012 to Dec-21."
+
+# time series of air temperature at 2 m for 
+# a pixel at 0° N 0° E
+plot(t, xmap[720,360,1519:end], lw=2, color=:purple, 
+legend=:false, ylim=(20,30), ylabel="Air temperature (°C)",
+xticks=(t[1:100:end],dict2[1:100:end]),
+xlabel="Time (MM-YY)", xtickfont=font(12), ytickfont=font(12),
+guidefont=font(16)) # location of tickmarks and values
+```
+
+As you might have noticed, displaying a single time series (@fig-ts_plot1) is much slower than producing a map (@fig-t2m_map_day1) when the spatial chunking is used.
+
+## Chunks overview
+
+Now, we will access two different chunk file from the same *air_temperature_2m* data set and explore its properties
+
+
+```{julia}
+# with the 'eachchunk' command we visualize
+# the index range of each chunk
+chunk1 = eachchunk(xmap) # spatial chunk
+size1 = chunk1[1,1,1]
+chunk2 = eachchunk(xbox); # intermediate chunk
+size2 = chunk2[1,1,1]
+print("Indeces for the first spatial chunk ", size1)
+println("\nIndeces for the first box chunk ", size2)
+
+```
+
+As we notice, the box chunk is stored in small boxes 90x90x256. We cannot observe the spatial chunk size because only the last command line is displayed however it is 1x720x1440^[The spatial chunk's size is based on the spatial grid's size. In this example the grid is 720 x 1440 pixels (a map layer). Conversely, The box chunk's size is more flexible and set considering the target analyses.].
+As we will discover later, these storage settings have different implications for data computation.
+
+A graphical representation of the spatial chunk is below
+
+```{julia}
+using PlotlyJS, FileIO
+
+# define chunk coordinates
+x = [1,2,3,4,5] # time steps
+y = [0,1440] # latitude
+z = [ # longitude
+        [0,720],
+        [0,720]
+    ]
+
+colormap = [
+    "rgb(230, 230, 20)",
+    "rgb(250, 250, 192)",
+    "rgb(150, 200, 115)",
+    "rgb(200, 200, 50)",
+    "rgb(192, 192, 192)",
+    "rgb(80, 68, 22)",
+    "rgb(222, 205, 135)"
+ ]
+   
+# define each surface, in this example the spatial chunks
+trace1 = PlotlyJS.surface(z=z, x=[x[1], x[1]], y=y, showscale=false, colorbar=false,
+    colorscale=[[0, colormap[3]], [1, colormap[3]]], opacity=0.85)
+trace2 = PlotlyJS.surface(z=z, x=[x[2],x[2]], y=y, showscale=false, colorbar=false,
+    colorscale=[[0, colormap[4]], [1, colormap[4]]], opacity=0.85)
+trace3 = PlotlyJS.surface(z=z, x=[x[3],x[3]], y=y, showscale=false, colorbar=false,
+    colorscale=[[0, colormap[7]], [1, colormap[7]]], opacity=0.85)
+trace4 = PlotlyJS.surface(z=z, x=[x[4],x[4]], y=y, showscale=false, colorbar=false,
+    colorscale=[[0, colormap[2]], [1, colormap[1]]], opacity=0.85)
+trace5 = PlotlyJS.surface(z=z, x=[x[5],x[5]], y=y, showscale=false, colorbar=false,
+    colorscale=[[0, colormap[1]], [1, colormap[2]]], opacity=0.85)
+
+# set the plot layout
+layout = Layout(title_text="Spatial chunking",
+    titlefont_size="25",
+    showgrid=false, # width=700, height=700,
+    layout_scene = "cube",
+    scene = attr(xaxis_title="Chunk coord. (Time)", 
+        yaxis_title="Chunk coord. (Lon.)", 
+        zaxis_title="Chunk coord. (Lat.)",
+        xaxis_nticks=5,
+        #yaxis_nticks=4,
+        zaxis_nticks=4,
+        aspectratio=attr(x=0.7, y=1, z=0.65), 
+        xaxis=attr(showbackground=false,
+            gridcolor="rgb(230, 230, 230)"),
+        yaxis=attr(showbackground=false,
+            gridcolor="rgb(210, 210, 210)"),
+        zaxis=attr(showbackground=false,
+            gridcolor="rgb(210, 210, 210)", zerolinecolor="rgb(0, 0, 0)"),            
+        aspectmode = "manual", zeroline=false),
+    plot_bgcolor="#E5E5E5", paper_bgcolor="white",font_size=13)
+
+# plot
+p1 = PlotlyJS.plot([trace1, trace2, trace3, trace4, trace5], layout);
+PlotlyJS.savefig(p1, "img1.png", format="png");
+img1 = load(string("img1.png"));
+display(img1)
+```
+
+
+Similarly, we can also represent some box chunks in the next plot
+
+```{julia}
+# import function for plotting box chunks
+include("boxchunkplot.jl")
+boxchunkfx(chunk2)
+```
+
+
+
+
+## Data access performance
+
+Now, let's estimate the time requiered to access data along different axes
+
+```{julia}
+# spatial access (one map layer)
+@time xmap[:,:,1];
+
+# temporal access (time series)
+@time xmap[1,1,:];
+```
+
+As expected, for the spatial chunk (xmap), access along spatial strides is much faster than accessing time series because of the internal storage in the NetCDF file. In this particular case we can access
+a map layer a few hundred times faster than a time series.
+
+```{julia}
+# spatial access (one map layer)
+@time xbox[:,:,1];
+
+# temporal access (time series)
+@time xbox[1,1,:];
+```
+
+For the intermediate chunk (xbox), there is a good compromise between accessing the spatial and temporal axes. In this case, access to the temporal axis is faster than access to the spatial axis. These intermediate chunks are prefered when performing analyses in all axes.
+
+::: {.callout-tip}
+## Take home message (1)
+
+In summary, the time required to access geospatial data and time series varies depending on the characteristics of the chunks in the dataset. In this example, we found that:
+
+* Spatial chunking can access spatial layers about a hundred times faster than time series.
+* The box chunk provides a good tradeoff when analyses are required across all axes.
+:::
+
+# Statistical computation
+
+Now, we want to compute the mean and median values for different chunks and across differente axes.Please, keep in mind that the computational resources needed for the mean and median are different. Specifically, the mean is a cumulative computation that does not requiered the entire data into memory. Contrary, the median needs to load and sort the entire data to be computed.
+using Statistics
+
+Our input variables is the same *air_temperature_2m* variable with two different chunk settings
+```{julia}
+xmap # spatial chunking
+
+xbox # intermediate chunking
+```
+
+## Mean
+Our input data is stored as DiskArrays. DiskArrays.jl knows the internal chunking structure and provides special implementations for the mapreduce function used in the implementation of the mean for AbstractArray. The following two aggregations access each chunk only once:
+
+### Mean by pixel
+```{julia}
+using Statistics
+@time xmean = mean(xmap, dims=3);
+
+@time xmean2 = mean(xbox,dims=3);
+```
+
+```{julia}
+# Plot results
+# |label: fig-t2m_map_mean
+# |fig-cap: "Multianual mean of air temperature at 2 m from 1979 to 2021 pixel-wise. The color map shows the temperature in degrees Celsius."
+
+heatmap(xaxisvalues, yaxisvalues, xmean[:,:]',
+ color=cgrad((:roma), rev=true),
+title=string("Mean ",varname),
+xlabel="Longitude", ylabel="Latitude", zlabel="Degrees",
+xtickfont=font(12), ytickfont=font(12), 
+guidefont=font(16))
+```
+
+Note that the computational time of the mean across all dimensions is similar regardless of the chunking.
+
+### Mean by time step
+
+```{julia}
+@time tmean1 = mean(xbox,dims=(1,2));
+
+@time tmean2 = mean(xmap, dims=(1,2));
+```
+
+```{julia}
+# |label: fig-ts_plot2_mean
+# |fig-cap: "Global mean of time series of air temperature at 2 m from Jan-2012 to Dec-21."
+
+# time series of air temperature 2 m for all pixels
+plot(t, tmean1[1519:end], lw=2, color=:brown,
+legend=:false, ylim=(0,10),
+ylabel="Air temperature (°C)", xlabel="Time (MM-YY)",
+xticks=(t[1:100:end],dict2[1:100:end]),
+xtickfont=font(12), ytickfont=font(12), 
+guidefont=font(16)) # location of tickmarks and values)
+```
+::: {.callout-tip}
+## Take home message (2)
+
+In the case of the mean, the computation time is similar regardless of the chunking properties and used axes. This is due to the fact that the mean is a cumulative opperation and does not need to load the entire data set. Additionally, this computation is properly handle it by DiskArrays.jl
+:::
+
+## Median
+
+### Median by pixel
+
+This gets more difficult for the median, because here we need the full time series in memory. This makes it impossible to compute the median in a single pass. Let's try this on a small subset.
+
+```{julia}
+# # subset spatial chunking
+# sub1 = view(xmap,1:2, 1:2,:)
+# out1 = zeros(size(sub1,1),size(sub1,2));
+
+# # Note: this way of reading the data is used for demostrative purposes, 
+# # but keep in mind that is very unefficient looping through the dataset. 
+# # more efficient approaches are mentioned at the end.
+# @time for ilat in axes(sub1,2), ilon in axes(sub1,1)
+#     out1[ilon,ilat] = median(sub1[ilon,ilat,:])
+# end
+```
+
+This already takes ages with 4 grid cells when working with spatial chunking. For this calculation it would be better to read e.g. approx. 1 GB of data each time and perform the calculations one after the other as we show later.
+
+```{julia}
+# subset box chunking
+sub2 = view(xbox,1:2, 1:2,:)
+out2 = zeros(size(sub2,1),size(sub2,2))
+
+@time for ilat in axes(sub2,2), ilon in axes(sub2,1)
+    out2[ilon,ilat] = median(sub2[ilon,ilat,:])
+end
+```
+Regarding the subset with the box chunking, the computation runs much more faster. This is explained becuase this chunk is more suitable to access time series.
+Here we compare and see that both results are exactly the same
+
+```{julia}
+#out1
+```
+
+```{julia}
+#out2
+```
+
+One way to deal with these inefficient calculations is to read the data in blocks. This means that a block is read and the calculation immediately follows. In this way, one block after the other is read and calculated until all the data has been read and calculated. In this way, the calculation becomes more efficient.
+
+```{julia}
+# here we fix latitude ranges that will be used to read the data in blocks
+out3 = zeros(size(xmap,1),size(xmap,2))
+latsteps = 90
+latranges = [(i*90-latsteps+1):(i*90) for i in 1:(720÷latsteps)]
+```
+
+
+```{julia}
+# @time for ilat in latranges
+#     out3[:,ilat] = median(xmap[:,ilat,:],dims=3)
+# end
+```
+
+```{julia}
+# out4 = zeros(size(xbox,1),size(xbox,2));
+
+# @time for ilat in latranges
+#     out4[:,ilat] = median(xbox[:,ilat,:],dims=3)
+# end
+```
+
+In general, results are obtained from the entire dataset in a reasonable time for both chunks. Nevertheless, we find that chunking by boxes is again more efficient than chunking by maps. Alternatively, we can use YAXArrays.jl, which performs exactly this workflow for a given cache size (see last section).
+
+
+```{julia}
+# # plot results
+# heatmap(xaxisvalues, yaxisvalues, out3[:,:]', color=cgrad((:roma), rev=true),
+# title=string("Median ",varname),
+# xlabel="Longitude", ylabel="Latitude", zlabel="Degrees")
+```
+
+# Final remarks
+
+::: {.callout-tip}
+## Take home message (3)
+
+Our last remarks are:
+
+* Chunking is critical for efficient data access when the entire data set cannot be loaded into memory.
+* Calculations such as the mean are not affected by chunking if an appropriate library and code are used.
+* To ensure optimal performance for all operations, an appropriate chunking size should be chosen considering the type of analyses and required dimmensions.
+:::
+
+As a final **note**, there are already libraries that efficiently deal with data partitioning and processing, one example is YAXArrays (<https://github.com/JuliaDataCubes/YAXArrays.jl>). These libraries contribute significantly to improve processing performance but full efficieny is only achieved when considering chunking.
+
+A short sintax for the median example using YAXArrays is: <br>
+
+```julia
+ds = open_dataset(string(pathin,"t2_map.nc"))
+ds.layer  
+medtair = mapslices(median, ds.layer, dims="Time",
+ max_cache=1e9)
+```
