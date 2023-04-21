@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "f25c5cb6110f04d12af1b1870810f3f3203f8d90"
+project_hash = "dffab0b27768d3539241e1f5f0fb232d5325b35e"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -202,6 +202,12 @@ version = "1.5.1"
 [[deps.Contour]]
 git-tree-sha1 = "d05d9e7b7aedff4e5b51a029dced05cfb6125781"
 uuid = "d38c429a-6771-53c6-b99e-75d170b6e991"
+version = "0.6.2"
+
+[[deps.CoordinateTransformations]]
+deps = ["LinearAlgebra", "StaticArrays"]
+git-tree-sha1 = "681ea870b918e7cff7111da58791d7f718067a19"
+uuid = "150eb455-5306-5404-9cee-2592286d6298"
 version = "0.6.2"
 
 [[deps.DataAPI]]
@@ -405,11 +411,34 @@ git-tree-sha1 = "3657eb348d44575cc5560c80d7e55b812ff6ffe1"
 uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
 version = "0.71.8+0"
 
+[[deps.GeoFormatTypes]]
+git-tree-sha1 = "434166198434a5c2fcc0a1a59d22c3b0ad460889"
+uuid = "68eda718-8dee-11e9-39e7-89f7f65f511f"
+version = "0.4.1"
+
 [[deps.GeoInterface]]
 deps = ["Extents"]
 git-tree-sha1 = "0eb6de0b312688f852f347171aba888658e29f20"
 uuid = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
 version = "1.3.0"
+
+[[deps.GeoInterfaceRecipes]]
+deps = ["GeoInterface", "RecipesBase"]
+git-tree-sha1 = "29e1ec25cfb6762f503a19495aec347acf867a9e"
+uuid = "0329782f-3d07-4b52-b9f6-d3137cf03c7a"
+version = "1.0.0"
+
+[[deps.GeoJSON]]
+deps = ["Extents", "GeoFormatTypes", "GeoInterface", "GeoInterfaceRecipes", "JSON3", "Tables"]
+git-tree-sha1 = "624eb2bb45428b1ca3f6b5428aa105028912c71c"
+uuid = "61d90e0f-e114-555e-ac52-39dfb47a3ef9"
+version = "0.6.4"
+
+[[deps.GeoMakie]]
+deps = ["Colors", "Downloads", "GeoInterface", "GeoJSON", "GeometryBasics", "ImageIO", "LinearAlgebra", "Makie", "Proj", "Reexport", "Statistics", "StructArrays"]
+git-tree-sha1 = "bd2f9bcf2a5cb949cf13993a3cf53cc8d1d99c23"
+uuid = "db073c08-6b98-4ee5-b6a4-5efafb3259c6"
+version = "0.5.0"
 
 [[deps.GeometryBasics]]
 deps = ["EarCut_jll", "GeoInterface", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
@@ -617,6 +646,12 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
+
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "SnoopPrecompile", "StructTypes", "UUIDs"]
+git-tree-sha1 = "84b10656a41ef564c39d2d477d7236966d2b5683"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.12.0"
 
 [[deps.JpegTurbo]]
 deps = ["CEnum", "FileIO", "ImageCore", "JpegTurbo_jll", "TOML"]
@@ -997,6 +1032,12 @@ git-tree-sha1 = "f809158b27eba0c18c269cf2a2be6ed751d3e81d"
 uuid = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
 version = "0.3.17"
 
+[[deps.PROJ_jll]]
+deps = ["Artifacts", "JLLWrappers", "LibCURL_jll", "Libdl", "Libtiff_jll", "Pkg", "SQLite_jll"]
+git-tree-sha1 = "fcb3f39ae1184a056ecc415863d46d2109aa6947"
+uuid = "58948b4f-47e0-5654-a9ad-f609743f8632"
+version = "900.100.0+0"
+
 [[deps.Packing]]
 deps = ["GeometryBasics"]
 git-tree-sha1 = "ec3edfe723df33528e085e632414499f26650501"
@@ -1112,6 +1153,12 @@ git-tree-sha1 = "d7a7aef8f8f2d537104f170139553b14dfe39fe9"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
 version = "1.7.2"
 
+[[deps.Proj]]
+deps = ["CEnum", "CoordinateTransformations", "GeoFormatTypes", "NetworkOptions", "PROJ_jll"]
+git-tree-sha1 = "495a52a7c491d0570a170f6de48a74860a1c1ece"
+uuid = "c94c279d-25a6-4763-9509-64d165bea63e"
+version = "1.4.0"
+
 [[deps.QOI]]
 deps = ["ColorTypes", "FileIO", "FixedPointNumbers"]
 git-tree-sha1 = "18e8f4d1426e965c7b532ddd260599e1510d26ce"
@@ -1217,6 +1264,12 @@ deps = ["SnoopPrecompile"]
 git-tree-sha1 = "8b20084a97b004588125caebf418d8cab9e393d1"
 uuid = "fdea26ae-647d-5447-a871-4b548cad5224"
 version = "3.4.4"
+
+[[deps.SQLite_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
+git-tree-sha1 = "54d66b0f69f4578f4988fc08d579783fcdcd764f"
+uuid = "76ed43ae-9a5d-5a62-8c75-30186b810ce8"
+version = "3.41.0+0"
 
 [[deps.ScanByte]]
 deps = ["Libdl", "SIMD"]
@@ -1359,6 +1412,12 @@ deps = ["Adapt", "DataAPI", "GPUArraysCore", "StaticArraysCore", "Tables"]
 git-tree-sha1 = "521a0e828e98bb69042fec1809c1b5a680eb7389"
 uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 version = "0.6.15"
+
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "ca4bccb03acf9faaf4137a9abc1881ed1841aa70"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.10.0"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
