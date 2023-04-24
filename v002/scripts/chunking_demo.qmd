@@ -17,7 +17,9 @@ citation-location: margin
 
 In this notebook you will learn how the chunking of the data set affects the reading and processing speed depending on data chunking and on the access patterns you need for your analysis.
 
-To start, chunking is important when working with datasets that do not fit into the memory which is often the case for climate and remote sensing data. This can severely limit the computation performance of data analysis due to the time to access, load and process the data. More information can be found at: <https://biojulia.github.io/post/hardware/>
+To start, chunking is important when working with datasets that do not fit into the memory which is often the case for climate and remote sensing data.
+This can severely limit the computation performance of data analysis due to the time to access, load and process the data.
+To learn more about hardware and the speed implications see: <https://biojulia.github.io/post/hardware/>
 
 **Task**: Use your favorite NetCDF package and method to compute the a) mean and b) median per spatial pixel for the *air_temperature_2m* variable without loading the whole data set into memory (7 GB uncompressed file).
 
@@ -38,20 +40,21 @@ Let's launch Julia and explore the data
     Pkg.instantiate()
     
     # load libraries
-   using NetCDF
-   using DiskArrays: eachchunk
-   using DelimitedFiles
+   using NetCDF # For loading of NetCDF data
+   using DiskArrays: eachchunk # for exploring the chunking of the data
+   using DelimitedFiles # For handling delimited files like csv
 
     # set files location
-    pathin = readdlm("mypahtfolder.txt")
+    pathin = readdlm("mypathfolder.txt")
 
     # load files metadata
+    # Where are we going to host the data?
     xmap0 = NetCDF.open(string(pathin[1],"t2m_map.nc"))
 
     # load files metadata
     xbox0 = NetCDF.open(string(pathin[1],"t2m_blocks.nc"));
 
-    # use the 'view' command to read the data indices
+    # use the 'view' command to read the data lazily
     # instead of loading the data
     xmap = view(xmap0["air_temperature_2m"],:,:,:)
     xbox = view(xbox0["air_temperature_2m"],:,:,:);
@@ -95,7 +98,7 @@ cb1 = Colorbar(fig[1,2], sf; label = "Air temperature (°C)", height = Relative(
 fig
 ```
 
-Now, let's observe a 10 years time series at the crossing between the equator and the prime meridian.
+Now, let's observe a 10 years from ? to ? time series at the crossing between the equator and the prime meridian.
 ```{julia}
 # subset dates for plotting
 dict1 = Dict(Dates.value(x) => Dates.format(x, "u-yy") for x in timevalues)
@@ -121,7 +124,7 @@ As you might have noticed, displaying a single time series (@fig-ts_plot1) is mu
 
 ## Chunks overview
 
-Now, we will access two different chunk file from the same *air_temperature_2m* data set and explore its properties
+Now, we will access two different chunk files from the same *air_temperature_2m* data set and explore their properties
 
 
 ```{julia}
@@ -135,8 +138,10 @@ print("Indices for the first spatial chunk ", size1)
 println("\nIndices for the first box chunk ", size2)
 ```
 
-As we notice, the spatial chunk size is 1x720x1440 which is the same than a map layer. On the other hand, the box chunk is stored in small blocks with the following dimmensions 90x90x256^[The spatial chunk's size is based on the spatial grid's size. In this example the grid is 720 x 1440 pixels (a map layer). Conversely, The box chunk's size is more flexible and set considering the target analyses.].
-As we will discover later, these storage settings have different implications for data computation.
+As we notice, the spatial chunk size is 1x720x1440 which is the same than a map layer. 
+On the other hand, the box chunk is stored in small blocks with the following dimmensions 90x90x256^[The spatial chunk's size is based on the spatial grid's size. In this example the grid is 720 x 1440 pixels (a map layer). 
+Conversely, The box chunk's size is more flexible and set considering the target analyses.].
+As we will discover later, these storage settings have different implications for the computation speed.
 
 A graphical representation of the spatial chunk is below.
 
@@ -170,7 +175,7 @@ Now, let's estimate the time requiered to access data along different axes for e
 ```
 
 As expected, for the spatial chunk (xmap), access along spatial strides is much faster than accessing time series because of the internal storage in the NetCDF file. In this particular case we can access
-a map layer a few hundred times faster than a time series.
+a map layer a few hundred times faster than a time series even though the map stores much more data than the single time series.
 
 ```{julia}
 # spatial access (one map layer)
@@ -193,7 +198,8 @@ In summary, the time required to access geospatial data and time series varies d
 
 # Statistical computation
 
-Now, we want to compute the mean and median values for different chunks and across differente axes. Keep in mind that the computational resources needed for the mean and median are different. Specifically, the mean is a cumulative computation that does not requiered the entire data into memory. Contrary, the median needs to load and sort the entire data to be computed. We will use the same input variable *air_temperature_2m* variable with the two different chunk settings
+Now, we want to compute the mean and median values for different chunks and across differente axes.
+Keep in mind that the computational resources needed for the mean and median are different. Specifically, the mean is a cumulative computation that does not requiered the entire data into memory. Contrary, the median needs to load and sort the entire data to be computed. We will use the same input variable *air_temperature_2m* variable with the two different chunk settings.
 ```{julia}
 # input chunks
 xmap # spatial chunking
@@ -201,7 +207,8 @@ xbox; # intermediate chunking
 ```
 
 ## Mean
-Our input data is stored as DiskArrays. `DiskArrays.jl` knows the internal chunking structure and provides special implementations for the `mapreduce` function used in the implementation of the mean for `AbstractArray`. The following two aggregations access each chunk only once:
+Our input data is stored on the disk and accessed as DiskArrays. The `DiskArrays.jl` package uses the internal chunking structure of larger than memory arrays and provides special implementations for the `mapreduce` function used in the implementation of the mean for `AbstractArray`.
+The following two aggregations access each chunk only once:
 
 ### Mean by pixel
 ```{julia}
@@ -248,14 +255,15 @@ guidefont=font(16)) # location of tickmarks and values)
 ::: {.callout-tip}
 ## Take home message (2)
 
-In the case of the mean, the computation time is similar regardless of the chunking properties and used axes. This is due to the fact that the mean is a cumulative opperation and does not need to load the entire data set. Additionally, this computation is properly handle it by DiskArrays.jl
+In the case of the mean, the computation time is similar regardless of the chunking properties and used axes. This is due to the fact that the mean is a cumulative operation and does not need to load the data set along the entire reduction dimension at the same time.
+Additionally, this computation is properly handled it by DiskArrays.jl
 :::
 
 ## Median
 
 ### Median by pixel
 
-This gets more difficult for the median, because here we need the full time series in memory. This makes it impossible to compute the median in a single pass. Let's try this on a small subset.
+The computation of a reduction gets more difficult for the median, because here we need the full time series in memory. This makes it impossible to compute the median in a single pass. Let's try this on a small subset.
 
 ```{julia}
 # subset spatial chunking
@@ -263,8 +271,8 @@ sub1 = view(xmap,1:2, 1:2,:)
 out1 = zeros(size(sub1,1),size(sub1,2));
 
 # Note: this way of reading the data is used for demostrative purposes, 
-# but keep in mind that is very unefficient looping through the dataset. 
-# more efficient approaches are mentioned at the end.
+# but keep in mind, it is very unefficient looping through the dataset. 
+# More efficient approaches are mentioned at the end.
 @time for ilat in axes(sub1,2), ilon in axes(sub1,1)
     out1[ilon,ilat] = median(sub1[ilon,ilat,:])
 end
@@ -281,7 +289,7 @@ out2 = zeros(size(sub2,1),size(sub2,2))
     out2[ilon,ilat] = median(sub2[ilon,ilat,:])
 end
 ```
-Regarding the subset with the box chunking, the computation runs much more faster. This is explained becuase this chunk is more suitable to access time series.
+Regarding the subset with the box chunking, the computation runs much faster, because this chunking is more suitable to access time series.
 Here we compare and see that both results are exactly the same:
 
 ```{julia}
@@ -338,10 +346,12 @@ Our last remarks are:
 
 * Chunking is critical for efficient data access when the entire data set cannot be loaded into memory.
 * Calculations such as the mean are not affected by chunking if an appropriate library and code are used.
-* To ensure optimal performance for all operations, an appropriate chunking size should be chosen considering the type of analyses and required dimmensions.
+* To ensure optimal performance for all operations, an appropriate chunking size should be chosen considering the type of analyses and required dimensions.
+* For a given dataset rechunking is only feasible if the rechunked data needs to be accessed multiple times.
 :::
 
-As a final **note**, there are already libraries that efficiently deal with data partitioning and processing, one example is YAXArrays (<https://github.com/JuliaDataCubes/YAXArrays.jl>). These libraries contribute significantly to improve processing performance but full efficieny is only achieved when considering chunking.
+As a final **note**, there are already libraries that efficiently deal with data partitioning and processing, one example is YAXArrays (<https://github.com/JuliaDataCubes/YAXArrays.jl>).
+These libraries contribute significantly to improve processing performance but full efficieny is only achieved when considering chunking.
 
 A short syntax for the median example using YAXArrays is: <br>
 
