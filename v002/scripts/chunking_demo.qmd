@@ -15,7 +15,7 @@ citation-location: margin
 
 # Introduction
 
-In this notebook you will learn how the chunking of the data set affects the reading and processing speed depending on data chunking and on the access patterns you need for your analysis.
+In this notebook you will learn how the chunking of large gridded data sets affects the reading and processing speed depending on data chunking and on the access patterns you need for your analysis.
 
 To start, chunking is important when working with datasets that do not fit into the memory which is often the case for climate and remote sensing data.
 This can severely limit the computation performance of data analysis due to the time to access, load and process the data.
@@ -40,24 +40,21 @@ Let's launch Julia and explore the data
     Pkg.instantiate()
     
     # load libraries
+   using Pkg.Artifacts
    using NetCDF # For loading of NetCDF data
    using DiskArrays: eachchunk # for exploring the chunking of the data
    using DelimitedFiles # For handling delimited files like csv
 
-    # set files location
-    pathin = readdlm("mypathfolder.txt")
-
+    filebase = artifact"example_nc"
     # load files metadata
     # Where are we going to host the data?
-    xmap0 = NetCDF.open(string(pathin[1],"t2m_map.nc"))
+    xmap0 = NetCDF.open(joinpath(filebase,"t2m_map.nc"))
 
     # load files metadata
-    xbox0 = NetCDF.open(string(pathin[1],"t2m_blocks.nc"));
+    xbox0 = NetCDF.open(joinpath(filebase,"t2m_blocks.nc"));
 
-    # use the 'view' command to read the data lazily
-    # instead of loading the data
-    xmap = view(xmap0["air_temperature_2m"],:,:,:)
-    xbox = view(xbox0["air_temperature_2m"],:,:,:);
+    xmap = xmap0["air_temperature_2m"];
+    xbox = xbox0["air_temperature_2m"];
 ```
 
 
@@ -131,9 +128,9 @@ Now, we will access two different chunk files from the same *air_temperature_2m*
 # with the 'eachchunk' command we visualize
 # the index range of each chunk
 chunk1 = eachchunk(xmap) # spatial chunk
-size1 = chunk1[1,1,1]
+size1 = first(chunk1)
 chunk2 = eachchunk(xbox); # intermediate chunk
-size2 = chunk2[1,1,1]
+size2 = first(chunk2)
 print("Indices for the first spatial chunk ", size1)
 println("\nIndices for the first box chunk ", size2)
 ```
@@ -356,8 +353,8 @@ These libraries contribute significantly to improve processing performance but f
 A short syntax for the median example using YAXArrays is: <br>
 
 ```julia
-ds = open_dataset(string(pathin,"t2_map.nc"))
-ds.layer  
-medtair = mapslices(median, ds.layer, dims="Time",
+ds = open_dataset(joinpath(filebase,"t2_map.nc"))
+ds.air_temperature_2m  
+medtair = mapslices(median, ds.air_temperature_2m, dims="Time",
  max_cache=1e9)
 ```

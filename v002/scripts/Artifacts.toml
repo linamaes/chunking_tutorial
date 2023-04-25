@@ -1,0 +1,6 @@
+[example_nc]
+git-tree-sha1 = "3df36bbe927b7eaa5f1a9daeb4ec13b03f8c4103"
+
+    [[example_nc.download]]
+    url = "https://s3.bgc-jena.mpg.de:9000/nfdi4earth/filesfordemo.tar.gz"
+    sha256 = "d18efe079ee38ed9c614591b31046486c38e55572539f883bf2ef2fab2a81042"
