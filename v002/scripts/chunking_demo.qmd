@@ -1,8 +1,19 @@
 ---
 title: "Understanding Chunking and Rechunking"
 subtitle: "Chunking demo for Edu Pilot"
-author: "MPI-BGC (Integration department)"
+author: 
+    - name: Lina M. Estupinan-Suarez
+    #   affiliations:
+    #   - name: "Integration department"
+    - name: Felix Cremer
+    #   affiliations:
+    #   - name: "Integration department"
+    - name: Fabian Gans
+    #   affiliations:
+    #   - name: "Integration department"
 date: 'April, 2023'
+doi-title: "DOI"
+doi: "????"
 format: html
 #  html:
 #    code-fold: true
@@ -11,6 +22,11 @@ toc: true
 toc-expand: 1
 reference-location: margin
 citation-location: margin
+self-contained: true
+css: banner_tutorial.css
+affiliation-title: "Max Planck Institute for Biogeochemistry"
+title-block-banner: true
+title-block-banner-color: black 
 ---
 
 # Introduction
@@ -27,34 +43,37 @@ For this tutorial, we will use two different chunk sizes of the same *air_temper
 
 * `t2_map.nc`: This chunked file setting aims fast access to spatial layers i.e., grids in latitude and longitude 
 
-* `t2_blocks.nc`: This chuncked file aims an intermediate access to both the spatial and temporal dimensions (box chunking)
+* `t2_blocks.nc`: This chunked file aims an intermediate access to both the spatial and temporal dimensions (box chunking)
 
 
 # Data exploration
 Let's launch Julia and explore the data
 
 ```{julia}
-    # load environment
-    using Pkg
-    Pkg.activate(".")
-    Pkg.instantiate()
-    
-    # load libraries
-   using Pkg.Artifacts
-   using NetCDF # For loading of NetCDF data
-   using DiskArrays: eachchunk # for exploring the chunking of the data
-   using DelimitedFiles # For handling delimited files like csv
+# load environment
+using Pkg
+Pkg.activate(".")
+Pkg.instantiate()
+ 
+# load libraries
+using Pkg.Artifacts
+using NetCDF # for loading of NetCDF data
+using DiskArrays: eachchunk # for exploring the chunking of the data
+using DelimitedFiles # for handling delimited files like cs
 
-    filebase = artifact"example_nc"
-    # load files metadata
-    # Where are we going to host the data?
-    xmap0 = NetCDF.open(joinpath(filebase,"t2m_map.nc"))
+# import code for plotting maps and figures
+include("plots4chunking.jl")
 
-    # load files metadata
-    xbox0 = NetCDF.open(joinpath(filebase,"t2m_blocks.nc"));
+# to access data in the cloud
+filebase = artifact"example_nc"
 
-    xmap = xmap0["air_temperature_2m"];
-    xbox = xbox0["air_temperature_2m"];
+# load files metadata
+xmap0 = NetCDF.open(joinpath(filebase,"t2m_map.nc"))
+xbox0 = NetCDF.open(joinpath(filebase,"t2m_blocks.nc"));
+
+# load data indices
+xmap = xmap0["air_temperature_2m"];
+xbox = xbox0["air_temperature_2m"];
 ```
 
 
@@ -62,66 +81,46 @@ Let's launch Julia and explore the data
 To get more familiar with the data let's do a few plots. First, let's observe air temperature at 2 m for one day at the global scale.
 
 ```{julia}
+# |label: fig-t2m_map_day1
+# |fig-cap: "Global map of air temperature at 2 m on 05-Apr-1979."
+
+# map of air temperature at 2 m for the first time step
+# calling a function from the code imported previously
+geoplotsfx(xmap[:,:,1])
+```
+
+Now, let's observe a time series of air temperature from 2012 to 2021 at the crossing between the equator and the prime meridian.
+
+```{julia}
 # libraries for plotting
-using Plots, CFTime, Dates
+using CFTime, Dates
 
 # load time axis
 xmap0["time"].atts
 timevalues = timedecode(xmap0["time"][:],xmap0["time"].atts["units"]);
 
-# load latitude and longitude values
-yaxisvalues=xmap0["lat"][:]
-size(yaxisvalues)
-xaxisvalues=xmap0["lon"][:]
-size(xaxisvalues)
-
-varname = "Air temperature at 2 m";
-```
-
-```{julia}
-# |label: fig-t2m_map_day1
-# |fig-cap: "Global map of air temperature at 2 m on 05-Apr-1979. The color map shows the temperature in Celsius degrees."
-
-## map of air temperature at 2 m for the first time step
-using CairoMakie, GeoMakie
-lons = -180:0.25:180
-lats = -90:0.25:90
-
-fig = Figure()
-ax = GeoAxis(fig[1,1]; coastlines = true) #, dest = "+proj=moll"
-sf = GeoMakie.surface!(ax, lons, lats, xmap[:,:,1]; shading = false,
-colormap = (Reverse(:roma), 0.95,), colorrange=(-40,40))
-cb1 = Colorbar(fig[1,2], sf; label = "Air temperature (°C)", height = Relative(0.65))
-fig
-```
-
-Now, let's observe a 10 years from ? to ? time series at the crossing between the equator and the prime meridian.
-```{julia}
-# subset dates for plotting
+# subset dates for plotting and assing the dates format
 dict1 = Dict(Dates.value(x) => Dates.format(x, "u-yy") for x in timevalues)
-timesub = timevalues[1519:end] #subset for plotting
-t = Dates.value.(timesub)
-dict2 = map(x->dict1[x],t);
+tsub = timevalues[1519:end] # subset for the selected years
+tax = Dates.value.(tsub)
+tax2 = map(x->dict1[x],tax);
 ```
 
 ```{julia}
 # |label: fig-ts_plot1
-# |fig-cap: "Time series of air temperature at 2 m at at 0° N 0° E from Jan-2012 to Dec-21."
+# |fig-cap: "Time series of air temperature at 2 m at at 0° N 0° E from Jan-2012 to Dec-2021."
 
 # time series of air temperature at 2 m for 
 # a pixel at 0° N 0° E
-Plots.plot(t, xmap[720,360,1519:end], lw=2, color=:black, 
-legend=:false, ylim=(20,30), ylabel="Air temperature (°C)",
-xticks=(t[1:100:end],dict2[1:100:end]),
-xlabel="Time (MM-YY)", xtickfont=font(12), ytickfont=font(12),
-guidefont=font(16)) # location of tickmarks and values
+# define input data and y-axis limits
+timeseriesfx(xmap[720,360,1519:end], 20, 30) 
 ```
 
 As you might have noticed, displaying a single time series (@fig-ts_plot1) is much slower than producing a map (@fig-t2m_map_day1) when the spatial chunking is used.
 
 ## Chunks overview
 
-Now, we will access two different chunk files from the same *air_temperature_2m* data set and explore their properties
+Now, we will access two files for the same *air_temperature_2m* data set, but with different chunk settings to explore and compare their properties.
 
 
 ```{julia}
@@ -129,39 +128,34 @@ Now, we will access two different chunk files from the same *air_temperature_2m*
 # the index range of each chunk
 chunk1 = eachchunk(xmap) # spatial chunk
 size1 = first(chunk1)
-chunk2 = eachchunk(xbox); # intermediate chunk
+chunk2 = eachchunk(xbox); # box chunk
 size2 = first(chunk2)
-print("Indices for the first spatial chunk ", size1)
-println("\nIndices for the first box chunk ", size2)
+print("The indices for the first spatial chunk are", size1)
+println("\nThe ndices for the first box chunk are", size2)
 ```
 
-As we notice, the spatial chunk size is 1x720x1440 which is the same than a map layer. 
+As we notice, the spatial chunk size is 1440x720x1 which corresponds to the dimmensions of one map layer. 
 On the other hand, the box chunk is stored in small blocks with the following dimmensions 90x90x256^[The spatial chunk's size is based on the spatial grid's size. In this example the grid is 720 x 1440 pixels (a map layer). 
-Conversely, The box chunk's size is more flexible and set considering the target analyses.].
+Conversely, The box chunk's size is more flexible and determined by considering the target analyses.]
 As we will discover later, these storage settings have different implications for the computation speed.
 
 A graphical representation of the spatial chunk is below.
 
 ```{julia}
-# import function for plotting box chunks
-include("plots4chunking.jl")
+# call function for plotting box chunks
 spatialchunkfx(chunk1)
 ```
 
-
-Similarly, we can also represent some blocks of the box chunk file in the next plot
+Similarly, we can also represent a few blocks of the box chunk file in the next plot.
 
 ```{julia}
 # import function for plotting box chunks
 boxchunkfx(chunk2)
 ```
 
-
-
-
 ## Data access performance
 
-Now, let's estimate the time requiered to access data along different axes for each chunck storage.
+Now, let's estimate the time requiered to access data along different axes for each chunk storage.
 
 ```{julia}
 # spatial access (one map layer)
@@ -171,7 +165,7 @@ Now, let's estimate the time requiered to access data along different axes for e
 @time xmap[1,1,:];
 ```
 
-As expected, for the spatial chunk (xmap), access along spatial strides is much faster than accessing time series because of the internal storage in the NetCDF file. In this particular case we can access
+As expected, for the spatial chunk (xmap), access along spatial strides is much faster than access to time series because of the internal storage in the NetCDF file. In this particular case we can access
 a map layer a few hundred times faster than a time series even though the map stores much more data than the single time series.
 
 ```{julia}
@@ -200,36 +194,35 @@ Keep in mind that the computational resources needed for the mean and median are
 ```{julia}
 # input chunks
 xmap # spatial chunking
-xbox; # intermediate chunking
+xbox; # box chunking
 ```
 
 ## Mean
-Our input data is stored on the disk and accessed as DiskArrays. The `DiskArrays.jl` package uses the internal chunking structure of larger than memory arrays and provides special implementations for the `mapreduce` function used in the implementation of the mean for `AbstractArray`.
+Our input data is stored on the disk and accessed as DiskArrays. The `DiskArrays.jl` package uses the internal chunking structure that are larger than the memory arrays and provides special implementations for the `mapreduce` function used in the implementation of the mean for `AbstractArray`.
 The following two aggregations access each chunk only once:
 
 ### Mean by pixel
 ```{julia}
 using Statistics
-@time xmean = mean(xmap, dims=3);
+@time xmean1 = mean(xmap, dims=3);
 
 @time xmean2 = mean(xbox,dims=3);
 ```
 
-```{julia}
-# Plot results
-# |label: fig-t2m_map_mean
-# |fig-cap: "Multianual mean of air temperature at 2 m from 1979 to 2021 pixel-wise. The color map shows the temperature in degrees Celsius."
-fig = Figure()
-ax = GeoAxis(fig[1,1]; coastlines = true) #, dest = "+proj=moll"
-sf = GeoMakie.surface!(ax, lons, lats, xmean[:,:]; shading = false,
-colormap = (Reverse(:roma), 0.95,), colorrange=(-40,40))
-cb1 = Colorbar(fig[1,2], sf; label = "Air temperature (°C)", height = Relative(0.65))
-fig
-```
-
 Note that the computational time of the mean across all dimensions is similar regardless of the chunking.
 
+Next, we plot the output of our computation.
+
+```{julia}
+# |label: fig-t2m_map_mean
+# |fig-cap: "Multianual mean of air temperature at 2 m from 1979 to 2021 pixel-wise."
+geoplotsfx(xmean1[:,:])
+```
+
+
 ### Mean by time step
+
+Our next step is to compute the global mean per time step.
 
 ```{julia}
 @time tmean1 = mean(xbox,dims=(1,2));
@@ -239,21 +232,16 @@ Note that the computational time of the mean across all dimensions is similar re
 
 ```{julia}
 # |label: fig-ts_plot2_mean
-# |fig-cap: "Global mean of time series of air temperature at 2 m from Jan-2012 to Dec-21."
+# |fig-cap: "Global mean of time series of air temperature at 2 m from Jan-2012 to Dec-2021."
 
-# time series of air temperature 2 m for all pixels
-Plots.plot(t, tmean1[1519:end], lw=2, color=:black,
-legend=:false, ylim=(0,10),
-ylabel="Air temperature (°C)", xlabel="Time (MM-YY)",
-xticks=(t[1:100:end],dict2[1:100:end]),
-xtickfont=font(12), ytickfont=font(12), 
-guidefont=font(16)) # location of tickmarks and values)
+# time series of air temperature at 2 m for all pixels
+timeseriesfx(tmean1[1519:end], 0, 10) # define input data and y-axis limits
 ```
 ::: {.callout-tip}
 ## Take home message (2)
 
-In the case of the mean, the computation time is similar regardless of the chunking properties and used axes. This is due to the fact that the mean is a cumulative operation and does not need to load the data set along the entire reduction dimension at the same time.
-Additionally, this computation is properly handled it by DiskArrays.jl
+* In the case of the mean, the computation time is similar regardless of the chunking properties and used axes. This is due to the fact that the mean is a cumulative operation and does not need to load the data set along the entire reduction dimension at the same time.
+* The mean computation is properly handled it by DiskArrays.jl.
 :::
 
 ## Median
@@ -268,7 +256,7 @@ sub1 = view(xmap,1:2, 1:2,:)
 out1 = zeros(size(sub1,1),size(sub1,2));
 
 # Note: this way of reading the data is used for demostrative purposes, 
-# but keep in mind, it is very unefficient looping through the dataset. 
+# but keep in mind, it is a very unefficient looping through the dataset. 
 # More efficient approaches are mentioned at the end.
 @time for ilat in axes(sub1,2), ilon in axes(sub1,1)
     out1[ilon,ilat] = median(sub1[ilon,ilat,:])
@@ -325,13 +313,9 @@ In general, results are obtained from the entire dataset in a reasonable time fo
 
 
 ```{julia}
-# plot results
-fig = Figure()
-ax = GeoAxis(fig[1,1]; coastlines = true) #, dest = "+proj=moll"
-sf = GeoMakie.surface!(ax, lons, lats, out3[:,:]; shading = false,
-colormap = (Reverse(:roma), 0.95,), colorrange=(-40,40))
-cb1 = Colorbar(fig[1,2], sf; label = "Air temperature (°C)", height = Relative(0.65))
-fig
+# |label: fig-t2m_map_median
+# |fig-cap: "Multianual median of air temperature at 2 m from 1979 to 2021 pixel-wise."
+geoplotsfx(out3[:,:])
 ```
 
 # Final remarks
@@ -343,7 +327,7 @@ Our last remarks are:
 
 * Chunking is critical for efficient data access when the entire data set cannot be loaded into memory.
 * Calculations such as the mean are not affected by chunking if an appropriate library and code are used.
-* To ensure optimal performance for all operations, an appropriate chunking size should be chosen considering the type of analyses and required dimensions.
+* To ensure optimal performance for all operations an appropriate chunking size should be chosen considering the type of analyses and required dimensions.
 * For a given dataset rechunking is only feasible if the rechunked data needs to be accessed multiple times.
 :::
 

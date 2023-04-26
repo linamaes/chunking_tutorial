@@ -92,7 +92,7 @@ layout = Layout(title_text="Spatial chunking",
     config=config)
     
     # plot
-    p1 = PlotlyJS.plot([trace1, trace2, trace3, trace4, trace5], layout);
+    p1 = PlotlyJS.plot([trace1, trace2, trace3, trace4, trace5], layout)
     PlotlyJS.savefig(p1, "img1.png", format="png")
     img = load(string("img1.png"));
     return(img)
@@ -246,4 +246,62 @@ config = PlotConfig(
         #display(p2)
         return(img)        
         end
+end
+
+using CairoMakie, GeoMakie
+function geoplotsfx(xin)
+    lons = -180:0.25:180
+    lats = -90:0.25:90
+    fig = Figure()
+    ax = GeoAxis(fig[1,1]; coastlines = true)
+    sf = GeoMakie.surface!(ax, lons, lats, xin; shading = false,
+    colormap = (Reverse(:roma), 0.95,), colorrange=(-40,40))
+    cb1 = Colorbar(fig[1,2], sf; label = "Air temperature (°C)", height = Relative(0.65))
+    return(fig)
+end
+
+
+function timeseriesfx(xin, ymin, ymax)
+f = Figure()
+ax = Makie.Axis(f[1, 1],
+    xlabel = "Time (Month-Year)",
+    ylabel = "Air temperature (°C)",
+    limits = (nothing, (ymin, ymax)),
+    xlabelsize=20, ylabelsize=20
+) 
+ax.xticks = (1:20:460, string.(tax2)[1:20:460])
+ax.xticklabelrotation = π/2
+lines!(ax, 1:460, xin, linewidth=2.5, color=:orange)
+return(f)
+end
+
+using Pkg.Artifacts
+function Pkg.Artifacts.find_artifacts_toml(path::String)
+    if !isdir(path)
+        path = dirname(path)
+    end
+    # Run until we hit the root directory.
+    while dirname(path) != path || isempty(path)
+        for f in Pkg.Artifacts.artifact_names
+            artifacts_toml_path = joinpath(path, f)
+            if isfile(artifacts_toml_path)
+                return abspath(artifacts_toml_path)
+            end
+        end
+
+        # Does a `(Julia)Project.toml` file exist here, in the absence of an Artifacts.toml?
+        # If so, stop the search as we've probably hit the top-level of this package,
+        # and we don't want to escape out into the larger filesystem.
+        for f in Base.project_names
+            if isfile(joinpath(path, f))
+                return nothing
+            end
+        end
+
+        # Move up a directory
+        path = dirname(path)
+    end
+
+    # We never found anything, just return `nothing`
+    return nothing
 end
