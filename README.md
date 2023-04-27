@@ -24,4 +24,4 @@ In brief, the tutorial shows:
 
 The tutorial includes short boxed summaries as take-home messages to highlight key points. An additional Julia file is included for supporting plotting figures and maps.
 
-This work was funded by NDFI4Earth Educational Pilots.
+This work was funded by NFDI4Earth Educational Pilots.
