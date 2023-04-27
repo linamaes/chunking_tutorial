@@ -1,11 +1,13 @@
-Tutorial: Understanding Data Chunking
-## "Demo for Edu Pilot"
+Tutorial: Understanding Data Chunking 
 ===
+Demo for Edu Pilot
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7870240.svg)](https://doi.org/10.5281/zenodo.7870240)
 
 Date: April 27, 2023
+
 Authors: Lina M. Estupinan-Suarez, Felix Cremer, Fabian Gans 
+
 Affiliation: Max Planck Institute for Biogeochemistry
 
 In this tutorial we showed the importance of data chunking when working with spatio-temporal gridded data sets. This is relevant because data sets for the Earth system sciences are getting larger and larger and they can no longer be completely loaded into working memory. Moreover, the number of input/output operations should be minimized to avoid limiting computation speed when data have to be accessed on disk. Complementary, more and more data is also available in the cloud and needs to be made cloud compatible.
