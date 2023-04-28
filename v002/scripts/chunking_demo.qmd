@@ -12,8 +12,8 @@ author:
     #   affiliations:
     #   - name: "Integration department"
 date: 'April 28, 2023'
-# doi-title: "DOI"
-# doi: 10.5281/zenodo.xxx
+doi-title: "DOI"
+doi: 10.5281/zenodo.7871119
 format: html
 #  html:
 #    code-fold: true
@@ -82,7 +82,7 @@ To get more familiar with the data let's do a few plots. First, let's observe ai
 
 ```{julia}
 # |label: fig-t2m_map_day1
-# |fig-cap: "Global map of air temperature at 2 m on 05-Apr-1979."
+# |fig-cap: "Global map of air temperature at 2 m on 05-Jan-1979."
 
 # map of air temperature at 2 m for the first time step
 # calling a function from the code imported previously
@@ -108,7 +108,7 @@ tax2 = map(x->dict1[x],tax);
 
 ```{julia}
 # |label: fig-ts_plot1
-# |fig-cap: "Time series of air temperature at 2 m at at 0° N 0° E from Jan-2012 to Dec-2021."
+# |fig-cap: "Time series of air temperature at 2 m at 0° N 0° E from Jan-2012 to Dec-2021."
 
 # time series of air temperature at 2 m for 
 # a pixel at 0° N 0° E
@@ -131,7 +131,7 @@ size1 = first(chunk1)
 chunk2 = eachchunk(xbox); # box chunk
 size2 = first(chunk2)
 print("The indices for the first spatial chunk are", size1)
-println("\nThe ndices for the first box chunk are", size2)
+println("\nThe indices for the first box chunk are", size2)
 ```
 
 As we notice, the spatial chunk size is 1440x720x1 which corresponds to the dimensions of one map layer. 
