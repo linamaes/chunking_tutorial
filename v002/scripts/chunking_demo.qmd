@@ -41,9 +41,9 @@ To learn more about hardware and the speed implications see: <https://biojulia.g
 
 For this tutorial, we will use two different chunk sizes of the same *air_temperature_2m* data set which has three dimensions (i.e., longitude, latitude, time). The files and chunks are: 
 
-* `t2_map.nc`: This chunked file setting aims at fast access to spatial layers i.e., grids in latitude and longitude 
+* `t2_map.nc`: This chunked file setting aims at fast access to spatial layers i.e., grids in latitude and longitude (map chunking).
 
-* `t2_blocks.nc`: This chunked file setting aims at an intermediate access to both the spatial and temporal dimensions (box chunking)
+* `t2_blocks.nc`: This chunked file setting aims at an intermediate access to both the spatial and temporal dimensions (box chunking).
 
 
 # Data exploration
@@ -184,7 +184,7 @@ For the intermediate chunk (xbox), there is a good compromise between accessing 
 In summary, the time required to access geospatial data and time series varies depending on the characteristics of the chunks in the dataset. In this example, we found that:
 
 * Spatial chunking can access spatial layers about a hundred times faster than time series.
-* The box chunk provides a good trade-off when analyses are required across all axes.
+* The box chunking provides a good trade-off when analyses are required across all axes.
 :::
 
 # Statistical computation
@@ -203,9 +203,9 @@ Our input data is stored on disk and accessed as DiskArrays. The `DiskArrays.jl`
 ### Mean by pixel
 ```{julia}
 using Statistics
-@time xmean1 = mean(xmap, dims=3);
+@time xmeanmap = mean(xmap, dims=3);
 
-@time xmean2 = mean(xbox,dims=3);
+@time xmeanbox = mean(xbox,dims=3);
 ```
 
 Note that the computational time of the mean across all dimensions is similar regardless of the chunking.
@@ -214,8 +214,8 @@ Next, we plot the output of our computation.
 
 ```{julia}
 # |label: fig-t2m_map_mean
-# |fig-cap: "Multianual mean of air temperature at 2 m from 1979 to 2021 pixel-wise."
-geoplotsfx(xmean1[:,:])
+# |fig-cap: "Multiannual mean of air temperature at 2 m from 1979 to 2021 pixel-wise."
+geoplotsfx(xmeanmap[:,:])
 ```
 
 
@@ -224,9 +224,9 @@ geoplotsfx(xmean1[:,:])
 Our next step is to compute the global mean per time step.
 
 ```{julia}
-@time tmean1 = mean(xbox,dims=(1,2));
+@time tmeanmap = mean(xmap,dims=(1,2));
 
-@time tmean2 = mean(xmap, dims=(1,2));
+@time tmeanbox = mean(xbox, dims=(1,2));
 ```
 
 ```{julia}
@@ -234,7 +234,7 @@ Our next step is to compute the global mean per time step.
 # |fig-cap: "Global mean of time series of air temperature at 2 m from Jan-2012 to Dec-2021."
 
 # time series of air temperature at 2 m for all pixels
-timeseriesfx(tmean1[1519:end], 0, 10) # define input data and y-axis limits
+timeseriesfx(tmeanbox[1519:end], 0, 10) # define input data and y-axis limits
 ```
 ::: {.callout-tip}
 ## Take home message (2)
@@ -288,13 +288,14 @@ One way to deal with these inefficient calculations is to read the data in block
 
 ```{julia}
 # here we fix latitude ranges that will be used to read the data in blocks
-out3 = zeros(size(xmap,1),size(xmap,2))
 latsteps = 90
 latranges = [(i*90-latsteps+1):(i*90) for i in 1:(720÷latsteps)];
 ```
 
 
 ```{julia}
+out3 = zeros(size(xmap,1),size(xmap,2))
+
 @time for ilat in latranges
     out3[:,ilat] = median(xmap[:,ilat,:],dims=3)
 end

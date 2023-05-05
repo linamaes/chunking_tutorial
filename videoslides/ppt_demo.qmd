@@ -1,0 +1,332 @@
+---
+title: "\n Understanding Data Chunking"
+subtitle: "Demo for Edu Pilot"
+author: 
+    - name: Lina M. Estupinan-Suarez, Felix Cremer, Fabian Gans 
+      affiliations:
+      - name: "Max Planck Institute for Biogeochemistry"
+date: 'April 28 2023'
+format:
+    revealjs:
+        slide-number: true
+jupyter: julia_test-1.8
+self-contained: true
+toc-expand: 1
+reference-location: margin
+citation-location: margin
+title-slide-attributes:
+  data-background-image: logos/logo_mpi_nfdi4earth_300dpi.png
+  data-background-opacity: "1"
+  data-background-size: 90%
+  data-background-position: 50% 2%
+doi-title: "DOI"
+doi: 10.5281/zenodo.7870240
+---
+
+## Contents
+* Chunking overview
+* Data exploration
+* Statistical computation
+* Final remarks
+
+
+## Introduction
+
+* Chunking is important when working with large gridded datasets that do not fit into memory. 
+* To learn more about hardware and the speed implications see: <https://biojulia.github.io/post/hardware/>
+
+## Task {.smaller}
+
+Compute the mean and median per spatial pixel for the *air_temperature_2m* variable (source: ERA5) without loading the whole data set into memory (7 GB uncompressed file).
+
+. . .
+
+- **Input**: *air_temperature_2m* with two different chunking configurations: 
+
+    + `t2_map.nc`: This chunked file setting aims at fast access to spatial layers i.e., grids in latitude and longitude (map chunking).
+
+    + `t2_blocks.nc`: This chuncked file setting aims at an intermediate access to both the spatial and temporal dimensions (box chunking).
+
+
+## Data exploration
+![](logos/julia_logo.png){.absolute top="5" right="50" width=15%}
+
+Let's launch Julia and explore the data
+
+
+```{julia}
+# load environment
+using Pkg
+Pkg.activate(".")
+Pkg.instantiate()
+
+using Pkg.Artifacts
+using DelimitedFiles # for handling delimited files like csv
+
+# import code for plotting maps and figures
+include("plots4chunking.jl")
+```
+
+
+```{julia}
+#| echo: true
+# load libraries
+using NetCDF # for loading of NetCDF data
+using DiskArrays: eachchunk # for exploring the chunking of the data
+using Statistics # for statistical analyses 
+
+# download data
+filebase = artifact"example_nc"
+
+# load files metadata
+xmap0 = NetCDF.open(joinpath(filebase,"t2m_map.nc"))
+xbox0 = NetCDF.open(joinpath(filebase,"t2m_blocks.nc"));
+
+# load data 
+xmap = xmap0["air_temperature_2m"];
+xbox = xbox0["air_temperature_2m"];
+```
+
+
+## Visual inspection
+Global map
+```julia
+include("plots4chunking.jl")
+geoplotsfx(xmap[:,:,1])
+```
+![](images4ppt/Tmap19790105.png){.absolute top="210" left="150" width=70%}
+
+## Visual inspection
+Time series
+
+```julia
+timeseriesfx(xmap[720,360,1519:end], 20, 30) 
+```
+![](images4ppt/ts10years.png){.absolute top="200" left="150" width=55%}
+
+
+## Chunks overview
+Different chunking settings for the same data set.
+
+```{julia}
+#| echo: true
+# with the 'eachchunk' command we visualize
+# the index range of each chunk
+chunkmap = eachchunk(xmap) # spatial chunk
+sizemap = first(chunkmap)
+
+chunkbox = eachchunk(xbox); # box chunk
+sizebox = first(chunkbox)
+
+print("The indices for the first spatial chunk are ", sizemap)
+println("\nThe indices for the first box chunk are ", sizebox)
+```
+
+## Spatial and box chunking 
+
+:::: {.columns}
+
+::: {.column width="45%"}
+Spatial chunking
+<br/> 
+```julia
+spatialchunkfx(chunk1)
+```
+<br/>
+![](images4ppt\imgspatialchunking.png){width=100%}
+:::
+
+::: {.column width="45%"}
+Box chunking
+<br/>
+```julia
+boxchunkfx(chunk2)
+```
+<br/>
+![](images4ppt\imgboxchunking.png){width=95%}
+:::
+
+::::
+
+## Data access performance {.smaller}
+
+Spatial chunking
+
+```{julia}
+# to avoid data compilation
+xmap[:,:,1];
+xmap[:,end,:];
+```
+
+```{julia}
+#| echo: true
+# spatial access (one map layer)
+@time xmap[:,:,1];
+
+# temporal access (time series)
+@time xmap[1,1,:];
+```
+
+. . .
+
+Box chunking
+```{julia}
+#| echo: true
+# spatial access (one map layer)
+@time xbox[:,:,1];
+
+# temporal access (time series)
+@time xbox[1,1,:];
+```
+
+
+## Take home message (1)
+
+*  Time required to access geospatial data and time series varies depending on the characteristics of the chunks in the dataset.
+
+. . .
+
+* Spatial chunking can access spatial layers about a hundred times faster than time series.
+
+. . .
+
+* The box chunking offers a good compromise when analyses are required across all axes.
+
+
+## Statistical computation {.smaller}
+
+Mean and Median have different computation requierments
+
+. . .
+
+Mean per pixel
+
+```{julia}
+#| echo: true
+using Statistics
+@time xmeanmap = mean(xmap, dims=3);
+@time xmeanbox = mean(xbox,dims=3);
+``` 
+
+. . .
+
+```julia
+geoplotsfx(xmeanmap[:,:])
+```
+![](images4ppt/Tmapmean1979to2021.png){width=55% fig-align="center"}
+
+
+## Statistical computation {.smaller}
+Mean per time step
+```{julia}
+#| echo: true
+@time tmeanmap = mean(xmap, dims=(1,2));
+@time tmeanbox = mean(xbox,dims=(1,2));
+```
+. . .
+
+```julia
+timeseriesfx(tmeanmap[1519:end], 0, 10)
+```
+![](images4ppt/tsmean2012to2021.png){width=50% fig-align="center"}
+
+
+
+## Take home message (2)
+
+* The computation time of the mean is similar regardless of the chunking properties and used axes. 
+
+. . .
+
+* This is due to the fact that the mean is a cumulative operation.
+
+. . .
+
+* The mean computation is properly handled by DiskArrays.jl.
+
+## Statistical computation {.smaller}
+Median by pixel
+
+Spatial chunking
+<br/> 
+
+```{julia}
+#| echo: true
+# subset spatial chunking
+sub1 = view(xmap,1:2, 1:2,:)
+out1 = zeros(size(sub1,1),size(sub1,2));
+
+# subset box chunking
+sub2 = view(xbox,1:2, 1:2,:)
+out2 = zeros(size(sub2,1),size(sub2,2))
+
+# Note: this is a very unefficient looping through the dataset!!!
+@time for ilat in axes(sub1,2), ilon in axes(sub1,1)
+    out1[ilon,ilat] = median(sub1[ilon,ilat,:])
+end
+
+@time for ilat in axes(sub2,2), ilon in axes(sub2,1)
+    out2[ilon,ilat] = median(sub2[ilon,ilat,:])
+end
+```
+
+::: {.fragment .fade-in}
+<p class="fragment highlight-red">Warning: </p>
+This is a very unefficient looping through the dataset!
+:::
+
+## Statistical computation {.smaller}
+Median by pixel
+
+Another approach is to read the data by blocks
+
+```{julia}
+#| echo: true
+latsteps = 90
+latranges = [(i*90-latsteps+1):(i*90) for i in 1:(720÷latsteps)];
+```
+
+And then compute the median for each block one after the other
+
+```{julia}
+#| echo: true
+out3 = zeros(size(xmap,1),size(xmap,2))
+@time for ilat in latranges
+    out3[:,ilat] = median(xmap[:,ilat,:],dims=3)
+end
+
+out4 = zeros(size(xbox,1),size(xbox,2));
+
+@time for ilat in latranges
+    out4[:,ilat] = median(xbox[:,ilat,:],dims=3)
+end
+
+```
+
+
+
+## Final remarks {.smaller}
+* Chunking is critical for efficient data access when the entire data set cannot be loaded into memory.
+
+. . .
+
+* Calculations such as the mean are not affected by chunking if an appropriate library and code are used.
+
+. . .
+
+* To ensure optimal performance for all operations an appropriate chunking size should be chosen considering the type of analyses and required dimensions.
+
+
+
+## Thank you for watching!
+
+<br/><br/>
+Repository: 
+[github.com/linamaes/chunking_tutorial](https://github.com/linamaes/chunking_tutorial)
+
+![](logos/github-mark.png){.absolute top="120" right="50" width=10%}
+
+![](logos/MPI_BGC_vertical_green.png){.absolute top="300" left="70" width=40%}
+
+![](logos/nfdi4earth_logo.png){.absolute top="350" left="550" width=45%}
+
